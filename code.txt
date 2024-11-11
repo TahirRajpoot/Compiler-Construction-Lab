@@ -1,0 +1,12 @@
+
+        int a ;
+        a = 5;
+        bool b ;
+        b = "string";
+        c = a + 10.1;
+        if (b > 10) {
+            return b;
+        } else {    
+            return 0;
+        }
+    
