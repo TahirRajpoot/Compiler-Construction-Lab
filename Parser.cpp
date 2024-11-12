@@ -1,51 +1,93 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <cctype>
-#include <fstream>
 #include <map>
-
+#include <fstream>
+#include <stdexcept>
 using namespace std;
 
-enum TokenType {
-    T_INT,T_FLOAT,T_DOUBLE, T_STRING, T_BOOL, T_LITERAL,T_TRUE,T_FALSE,T_CHAR,T_ID, T_NUM, T_IF, T_ELSE, T_RETURN, 
-    T_ASSIGN, T_PLUS, T_MINUS, T_MUL, T_DIV, 
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE,  
-    T_SEMICOLON, T_GT, T_EOF, 
+enum TokenType
+{
+    T_INT,
+    T_ID,
+    T_NUM,
+    T_IF,
+    T_ELSE,
+    T_RETURN,
+    T_ASSIGN,
+    T_PLUS,
+    T_MINUS,
+    T_MUL,
+    T_DIV,
+    T_LPAREN,
+    T_RPAREN,
+    T_LBRACE,
+    T_RBRACE,
+    T_SEMICOLON,
+    T_GT,
+    T_WHILE,
+    T_FUNC,
+    T_SWITCH,
+    T_CASE,
+    T_DEFAULT,
+    T_BREAK,
+    T_BOOL,
+    T_TRUE,
+    T_FALSE,
+    T_STRING,
+    T_COMMENT,
+    T_COLON,
+    T_EOF,
+    T_FLOAT,
+    T_DOUBLE,
+    T_LT
+
 };
 
-
-struct Token {
+struct Token
+{
     TokenType type;
     string value;
     int line;
 };
 
-class Lexer {
+class Lexer
+{
 private:
     string src;
     size_t pos;
-    int line; 
+    int line;
 
 public:
-    Lexer(const string &src) {
-        this->src = src;
-        this->pos = 0;
-        this->line = 1; 
-    }
+    Lexer(const string &src) : src(src), pos(0), line(1) {}
 
-    vector<Token> tokenize() {
+    vector<Token> tokenize()
+    {
         vector<Token> tokens;
-        while (pos < src.size()) {
+        while (pos < src.size())
+        {
             char current = src[pos];
-            
-            if (isspace(current)) {
-                if (current == '\n') line++; 
+
+            if (current == '\n')
+            {
+                line++;
                 pos++;
                 continue;
             }
-            if (isdigit(current)) {
-                tokens.push_back(Token{T_NUM, consumeNumber(), line});  
+            if (isspace(current))
+            {
+                pos++;
+                continue;
+            }
+            if (current == '/' && pos + 1 < src.size() && src[pos + 1] == '/')
+            {
+                while (pos < src.size() && src[pos] != '\n')
+                    pos++;
+                continue;
+            }
+            if (isdigit(current))
+            {
+                tokens.push_back(Token{T_NUM, consumeNumber(), line});
                 continue;
             }
             if (isalpha(current)) {
@@ -60,19 +102,23 @@ public:
                 else if (word == "if") tokens.push_back(Token{T_IF, word, line});
                 else if (word == "else") tokens.push_back(Token{T_ELSE, word, line});
                 else if (word == "return") tokens.push_back(Token{T_RETURN, word, line});
+                else if (word == "func") tokens.push_back(Token{T_FUNC, word, line});
+                else if (word == "switch") tokens.push_back(Token{T_SWITCH, word, line});
+                else if (word == "case") tokens.push_back(Token{T_CASE, word, line});
+                else if (word == "default") tokens.push_back(Token{T_DEFAULT, word, line});
+                else if (word == "break") tokens.push_back(Token{T_BREAK, word, line});
+                else if (word == "while") tokens.push_back(Token{T_WHILE, word, line});
                 else tokens.push_back(Token{T_ID, word, line});
                 continue;
             }
-            if(current == '"')
+            if (current == '"')
             {
-                string stringWord = consumeString();
-                tokens.push_back(Token{T_LITERAL, stringWord, line});
+                tokens.push_back(Token{T_STRING, consumeString(), line});
                 continue;
-                
-
             }
-            
-            switch (current) {
+
+            switch (current)
+            {
                 case '=': tokens.push_back(Token{T_ASSIGN, "=", line}); break;
                 case '+': tokens.push_back(Token{T_PLUS, "+", line}); break;
                 case '-': tokens.push_back(Token{T_MINUS, "-", line}); break;
@@ -80,20 +126,23 @@ public:
                 case '/': tokens.push_back(Token{T_DIV, "/", line}); break;
                 case '(': tokens.push_back(Token{T_LPAREN, "(", line}); break;
                 case ')': tokens.push_back(Token{T_RPAREN, ")", line}); break;
-                case '{': tokens.push_back(Token{T_LBRACE, "{", line}); break;  
-                case '}': tokens.push_back(Token{T_RBRACE, "}", line}); break;  
-                case ';': tokens.push_back(Token{T_SEMICOLON, ";", line}); break;
+                case '{': tokens.push_back(Token{T_LBRACE, "{", line}); break;
+                case '}': tokens.push_back(Token{T_RBRACE, "}", line});break;
+                case ';': tokens.push_back(Token{T_SEMICOLON, ";", line});break;
                 case '>': tokens.push_back(Token{T_GT, ">", line}); break;
-                default: cout << "Unexpected character '" << current << "' at line " << line << endl; exit(1);
+                case ':': tokens.push_back(Token{T_COLON, ":", line});break;
+                case '<': tokens.push_back(Token{T_LT, ">", line}); break;
+            default:
+                cout << "Unexpected character: " << current << " at line " << line << endl;
+                exit(1);
             }
             pos++;
         }
-        tokens.push_back(Token{T_EOF, "", line});  
+        tokens.push_back(Token{T_EOF, "", line});
         return tokens;
     }
 
-
-        string  consumeNumber() {
+    string  consumeNumber() {
             size_t start = pos;
             bool hasDecimalPoint = false;
 
@@ -105,22 +154,26 @@ public:
             }
 
             return src.substr(start, pos - start);
-        }
-        
-        string consumeWord() {
-            size_t start = pos;
-            while (pos < src.size() && isalnum(src[pos])) pos++;
-            return src.substr(start, pos - start);
-        }
-        string consumeString() {
-            size_t start = pos;
-            while (pos < src.size() && src[pos] != '"') 
-            {
-                pos++;
-            }
+    }
+
+    string consumeWord()
+    {
+        size_t start = pos;
+        while (pos < src.size() && isalnum(src[pos]))
             pos++;
-            return src.substr(start, pos - start);
-        }
+        return src.substr(start, pos - start);
+    }
+
+    string consumeString()
+    {
+        pos++; // Skip the opening quote
+        size_t start = pos;
+        while (pos < src.size() && src[pos] != '"')
+            pos++;
+        string str = src.substr(start, pos - start);
+        pos++; // Skip the closing quote
+        return str;
+    }
 };
 
 
@@ -154,11 +207,24 @@ private:
             parseReturnStatement();
         } else if (tokens[pos].type == T_LBRACE) {  
             parseBlock();
-        } else {
+        }
+        else if (tokens[pos].type == T_WHILE) {
+            parseWhileStatement();
+        }
+
+        else {
             cout << "Syntax error: unexpected token " << tokens[pos].value << "' at line " << tokens[pos].line;
             exit(1);
         }
     }
+    void parseWhileStatement() {
+        expect(T_WHILE);  
+        expect(T_LPAREN); 
+        parseExpression();
+        expect(T_RPAREN);
+        parseStatement();
+    }
+
 
     void parseBlock() {
         expect(T_LBRACE);  
@@ -205,9 +271,9 @@ private:
             pos++;
             parseTerm();
         }
-        if (tokens[pos].type == T_GT) {
+        if (tokens[pos].type == T_GT || tokens[pos].type == T_LT) {
             pos++;
-            parseExpression();  // After relational operator, parse the next expression
+            parseExpression();  
         }
     }
 
@@ -220,7 +286,7 @@ private:
     }
 
     void parseFactor() {
-        if (tokens[pos].type == T_NUM || tokens[pos].type == T_ID) {
+        if (tokens[pos].type == T_NUM || tokens[pos].type == T_ID || tokens[pos].type == T_STRING ) {
             pos++;
         } else if (tokens[pos].type == T_LPAREN) {
             expect(T_LPAREN);

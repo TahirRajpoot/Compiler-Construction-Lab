@@ -1,12 +1,17 @@
 
-        int a ;
-        a = 5;
-        bool b ;
-        b = "string";
-        c = a + 10.1;
-        if (b > 10) {
-            return b;
-        } else {    
-            return 0;
-        }
+int a ;
+a = 5;
+bool b ;
+//tahir tahir t
+b = "string";
+c = a + 10.1;
+while(a < b)
+{
+    a = a+b;
+}
+if (b > 10) {
+    return b;
+} else {    
+    return 0;
+}
     
