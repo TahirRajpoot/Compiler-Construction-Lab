@@ -1,7 +1,5 @@
-
 int a ;
-a = 5;
-bool b ;
+bool b = true;
 //tahir tahir t
 b = "string";
 c = a + 10.1;
@@ -11,7 +9,8 @@ while(a < b)
 }
 if (b > 10) {
     return b;
-} else {    
+} 
+else {    
     return 0;
 }
     

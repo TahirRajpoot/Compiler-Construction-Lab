@@ -166,35 +166,73 @@ public:
 
     string consumeString()
     {
-        pos++; // Skip the opening quote
+        pos++; 
         size_t start = pos;
         while (pos < src.size() && src[pos] != '"')
             pos++;
         string str = src.substr(start, pos - start);
-        pos++; // Skip the closing quote
+        pos++; 
         return str;
     }
+};
+class SymbolTable
+{
+    public:
+        void addSymbol(const string &name, const string &type)
+        {
+            if (symbolTable.find(name) != symbolTable.end())
+            {
+                cout<<"Semantic error: Variable '" + name + "' is already declared."<<endl;
+            }
+            symbolTable[name] = type;
+        }
+
+        string getSymbolType(const string &name)
+        {
+            if (symbolTable.find(name) == symbolTable.end())
+            {
+                cout<<"Semantic error: Variable '" + name + "' is not declared."<<endl;
+            }
+            return symbolTable[name];
+        }
+
+        bool isDeclared(const string &name)
+        {
+            return symbolTable.find(name) != symbolTable.end();
+        }
+        void printSymbolTable() const {
+        cout << "Symbol Table:" << endl;
+        for (const auto &symbol : symbolTable) {
+            cout << "Name: " << symbol.first << ", Type: " << symbol.second << endl;
+        }
+    }
+
+    private:
+        map<string, string> symbolTable;
 };
 
 
 class Parser {
  
-public:
-    Parser(const vector<Token> &tokens) {
-        this->tokens = tokens;  
-        this->pos = 0;          
-    }
-
-    void parseProgram() {
-        while (tokens[pos].type != T_EOF) {
-            parseStatement();
+    private:
+        vector<Token> tokens;
+        size_t pos;
+        SymbolTable symTable;
+    public:
+        Parser(const vector<Token> &tokens) {
+            this->tokens = tokens;  
+            this->pos = 0;          
         }
-        cout << "Parsing completed successfully! No Syntax Error" << endl;
-    }
 
-private:
-    vector<Token> tokens;
-    size_t pos;
+        void parseProgram() {
+            while (tokens[pos].type != T_EOF) {
+                parseStatement();
+                cout << "Symbol Table:\n" << endl;
+                symTable.printSymbolTable();
+            }
+            cout << "Parsing completed successfully! No Syntax Error" << endl;
+        }
+
 
     void parseStatement() {
         if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || tokens[pos].type == T_BOOL || tokens[pos].type == T_STRING) {
@@ -217,6 +255,15 @@ private:
             exit(1);
         }
     }
+    void parseBlock()
+    {
+        expect(T_LBRACE);
+        while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF)
+        {
+            parseStatement(); 
+        }
+        expect(T_RBRACE);
+    }
     void parseWhileStatement() {
         expect(T_WHILE);  
         expect(T_LPAREN); 
@@ -225,27 +272,37 @@ private:
         parseStatement();
     }
 
-
-    void parseBlock() {
-        expect(T_LBRACE);  
-        while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF) {
-            parseStatement();
-        }
-        expect(T_RBRACE);  
-    }
     void parseDeclaration(TokenType type) {
 
-        expect(type);
-        expect(T_ID);
+        expect(type);                      
+        string name = expectGetValue(T_ID);
+        string data_type = "";
+        if(type == T_INT) {data_type = "int";}
+        else if(type == T_FLOAT) {data_type = "float";}
+        else if(type == T_BOOL) {data_type = "bool";}
+        else if(type == T_STRING) {data_type = "string";}
+        else if(type == T_DOUBLE) {data_type = "double";}
+            
+        symTable.addSymbol(name, data_type);    
         expect(T_SEMICOLON);
     }
+    string expectGetValue(TokenType type)
+    {
+        string value = tokens[pos].value;
+        expect(type);
+        return value;
+    }
 
-    void parseAssignment() {
+    void parseAssignment()
+    {
+        string name = expectGetValue(T_ID);
+        symTable.getSymbolType(name);
         expect(T_ID);
         expect(T_ASSIGN);
         parseExpression();
         expect(T_SEMICOLON);
     }
+    
 
     void parseIfStatement() {
         expect(T_IF);
@@ -314,6 +371,7 @@ private:
         }
     }
 };
+
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
