@@ -131,7 +131,7 @@ public:
                 case ';': tokens.push_back(Token{T_SEMICOLON, ";", line});break;
                 case '>': tokens.push_back(Token{T_GT, ">", line}); break;
                 case ':': tokens.push_back(Token{T_COLON, ":", line});break;
-                case '<': tokens.push_back(Token{T_LT, ">", line}); break;
+                case '<': tokens.push_back(Token{T_LT, "<", line}); break;
             default:
                 cout << "Unexpected character: " << current << " at line " << line << endl;
                 exit(1);
@@ -175,6 +175,35 @@ public:
         return str;
     }
 };
+class ThreeAddressCodeGenerator
+{
+    public:
+        vector<string> instructions;
+        int tempCount = 0;
+
+        string newTemp()
+        {
+            return "t" + to_string(tempCount++);
+        }
+
+        void addInstruction(const string &instr)
+        {
+            instructions.push_back(instr);
+        }
+
+        vector<string> getInstructionsAsVector() const
+        {
+            return instructions;
+        }
+
+        void printInstructions()
+        {
+            for (const auto &instr : instructions)
+            {
+                cout << instr << endl;
+            }
+        }
+};
 class SymbolTable
 {
     public:
@@ -201,12 +230,10 @@ class SymbolTable
             return symbolTable.find(name) != symbolTable.end();
         }
         void printSymbolTable() const {
-        cout << "Symbol Table:" << endl;
         for (const auto &symbol : symbolTable) {
             cout << "Name: " << symbol.first << ", Type: " << symbol.second << endl;
         }
     }
-
     private:
         map<string, string> symbolTable;
 };
@@ -218,6 +245,8 @@ class Parser {
         vector<Token> tokens;
         size_t pos;
         SymbolTable symTable;
+        ThreeAddressCodeGenerator threeAddressCode;
+        
     public:
         Parser(const vector<Token> &tokens) {
             this->tokens = tokens;  
@@ -227,13 +256,13 @@ class Parser {
         void parseProgram() {
             while (tokens[pos].type != T_EOF) {
                 parseStatement();
-                cout << "Symbol Table:\n" << endl;
-                symTable.printSymbolTable();
             }
+            cout << "Symbol Table:\n" << endl;
+            symTable.printSymbolTable();
+            cout << "Three Address Code:\n" << endl;
+            threeAddressCode.printInstructions();
             cout << "Parsing completed successfully! No Syntax Error" << endl;
         }
-
-
     void parseStatement() {
         if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || tokens[pos].type == T_BOOL || tokens[pos].type == T_STRING) {
             parseDeclaration(tokens[pos].type);                
@@ -257,19 +286,33 @@ class Parser {
     }
     void parseBlock()
     {
-        expect(T_LBRACE);
+        expect(T_LBRACE); 
         while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF)
         {
             parseStatement(); 
         }
         expect(T_RBRACE);
     }
-    void parseWhileStatement() {
-        expect(T_WHILE);  
-        expect(T_LPAREN); 
-        parseExpression();
+    void parseWhileStatement()
+    {
+        expect(T_WHILE);
+        expect(T_LPAREN);
+        string condition = parseExpression();
         expect(T_RPAREN);
+
+        string temp = threeAddressCode.newTemp();
+        threeAddressCode.addInstruction(temp + " = " + condition);
+
+        threeAddressCode.addInstruction("L1:");
+        threeAddressCode.addInstruction("if " + temp + " goto L2");
+        threeAddressCode.addInstruction("goto L3");
+        threeAddressCode.addInstruction("L2:");
+
         parseStatement();
+
+        threeAddressCode.addInstruction(temp + " = " + condition);
+        threeAddressCode.addInstruction("goto L1");
+        threeAddressCode.addInstruction("L3:");
     }
 
     void parseDeclaration(TokenType type) {
@@ -295,68 +338,129 @@ class Parser {
 
     void parseAssignment()
     {
-        string name = expectGetValue(T_ID);
-        symTable.getSymbolType(name);
-        expect(T_ID);
+        string varName = expectAndReturnValue(T_ID);
+        symTable.getSymbolType(varName); 
         expect(T_ASSIGN);
-        parseExpression();
+        string expression = parseExpression();
+
+        threeAddressCode.addInstruction(varName + " = " + expression); 
         expect(T_SEMICOLON);
     }
-    
-
-    void parseIfStatement() {
+    string expectAndReturnValue(TokenType type)
+    {
+        string value = tokens[pos].value;
+        expect(type);
+        return value;
+    }
+    void parseIfStatement()
+    {
         expect(T_IF);
-        expect(T_LPAREN);
-        parseExpression();
+        expect(T_LPAREN);                
+        string cond = parseExpression(); 
         expect(T_RPAREN);
-        parseStatement();  
-        if (tokens[pos].type == T_ELSE) {
+
+        string temp = threeAddressCode.newTemp();             
+        threeAddressCode.addInstruction(temp + " = " + cond); 
+
+        threeAddressCode.addInstruction("if_false " + temp + " goto L1"); 
+        threeAddressCode.addInstruction("goto L2");                 
+        threeAddressCode.addInstruction("L1:");                     
+
+        parseStatement();
+
+        if (tokens[pos].type == T_ELSE)
+        { 
+            threeAddressCode.addInstruction("goto L3");
+            threeAddressCode.addInstruction("L2:");
             expect(T_ELSE);
-            parseStatement();  
+            parseStatement(); 
+            threeAddressCode.addInstruction("L3:");
+        }
+        else
+        {
+            threeAddressCode.addInstruction("L2:");
         }
     }
 
-    void parseReturnStatement() {
+    void parseReturnStatement()
+    {
         expect(T_RETURN);
-        parseExpression();
+        string expression = parseExpression();
+        threeAddressCode.addInstruction("return " + expression); 
         expect(T_SEMICOLON);
     }
 
-    void parseExpression() {
-        parseTerm();
-        while (tokens[pos].type == T_PLUS || tokens[pos].type == T_MINUS) {
-            pos++;
-            parseTerm();
+    string parseExpression()
+    {
+        string term = parseTerm();
+        while (tokens[pos].type == T_PLUS || tokens[pos].type == T_MINUS)
+        {
+            TokenType op = tokens[pos++].type;
+            string nextTerm = parseTerm();                                                       
+            string temp = threeAddressCode.newTemp();                                                         
+            threeAddressCode.addInstruction(temp + " = " + term + (op == T_PLUS ? " + " : " - ") + nextTerm); 
+            term = temp;
         }
-        if (tokens[pos].type == T_GT || tokens[pos].type == T_LT) {
-            pos++;
-            parseExpression();  
-        }
-    }
-
-    void parseTerm() {
-        parseFactor();
-        while (tokens[pos].type == T_MUL || tokens[pos].type == T_DIV) {
-            pos++;
-            parseFactor();
-        }
-    }
-
-    void parseFactor() {
-        if (tokens[pos].type == T_NUM || tokens[pos].type == T_ID || tokens[pos].type == T_STRING ) {
-            pos++;
-        } else if (tokens[pos].type == T_LPAREN) {
-            expect(T_LPAREN);
-            parseExpression();
-            expect(T_RPAREN);
-        }
-        else if(tokens[pos].type == T_TRUE || tokens[pos].type == T_FALSE)
+        if (tokens[pos].type == T_GT || tokens[pos].type == T_LT)
         {   
+            string greater_less = "";
+            if(tokens[pos].type == T_GT){
+                greater_less = ">";
+            }
+            else if(tokens[pos].type == T_LT ){
+                greater_less = "<";
+            }                                
             pos++;
-            
+            string nextexpression = parseExpression();                        
+            string temp = threeAddressCode.newTemp();
+            threeAddressCode.addInstruction(temp + " = " + term +  " " + greater_less  +" "+ nextexpression); 
+            term = temp;
         }
-        else {
-            cout << "Syntax error: unexpected token " << tokens[pos].value << endl;
+        return term;
+    }
+
+    string parseTerm()
+    {
+        string factor = parseFactor();
+        while (tokens[pos].type == T_MUL || tokens[pos].type == T_DIV)
+        {
+            TokenType op = tokens[pos++].type;
+            string nextFactor = parseFactor();
+            string temp = threeAddressCode.newTemp();                                                            
+            threeAddressCode.addInstruction(temp + " = " + factor + (op == T_MUL ? " * " : " / ") + nextFactor); 
+            factor = temp;                                                                          
+        }
+        return factor;
+    }
+
+    string parseFactor()
+    {
+        if (tokens[pos].type == T_NUM)
+        {
+            return tokens[pos++].value;
+        }
+        else if (tokens[pos].type == T_ID)
+        {
+            return tokens[pos++].value;
+        }
+        else if (tokens[pos].type == T_LPAREN)
+        {
+            expect(T_LPAREN);
+            string expression = parseExpression();
+            expect(T_RPAREN);
+            return expression;
+        }
+        else if (tokens[pos].type == T_STRING)
+        {
+            return tokens[pos++].value;
+        }
+        else if (tokens[pos].type == T_TRUE || tokens[pos].type == T_FALSE)
+        {
+            return tokens[pos++].value;
+        }
+        else
+        {
+            cout << "Syntax error: unexpected token '" << tokens[pos].value << "' at line " << tokens[pos].line << endl;
             exit(1);
         }
     }

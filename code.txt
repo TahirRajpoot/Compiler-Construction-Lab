@@ -1,8 +1,9 @@
 int a ;
-bool b = true;
+bool b;
 //tahir tahir t
 b = "string";
-c = a + 10.1;
+int c;
+c = a * 10.1;
 while(a < b)
 {
     a = a+b;
