@@ -40,7 +40,8 @@ enum TokenType
     T_EOF,
     T_FLOAT,
     T_DOUBLE,
-    T_LT
+    T_LT,
+    T_DO
 
 };
 
@@ -108,6 +109,7 @@ public:
                 else if (word == "default") tokens.push_back(Token{T_DEFAULT, word, line});
                 else if (word == "break") tokens.push_back(Token{T_BREAK, word, line});
                 else if (word == "while") tokens.push_back(Token{T_WHILE, word, line});
+                else if (word == "do") tokens.push_back(Token{T_DO, word, line});
                 else tokens.push_back(Token{T_ID, word, line});
                 continue;
             }
@@ -282,6 +284,9 @@ class Parser {
         else if (tokens[pos].type == T_WHILE) {
             parseWhileStatement();
         }
+        else if (tokens[pos].type == T_DO) {
+            parseDoWhileStatement();
+        }
 
         else {
             cout << "Syntax error: unexpected token " << tokens[pos].value << "' at line " << tokens[pos].line;
@@ -374,6 +379,22 @@ class Parser {
         expect(type);
         return value;
     }
+    void parseDoWhileStatement() {
+        expect(T_DO); 
+        string loopStart = threeAddressCode.newTemp(); 
+        threeAddressCode.addInstruction(loopStart + ":");
+
+        parseStatement(); 
+
+        expect(T_WHILE);
+        expect(T_LPAREN); 
+        string condition = parseExpression();
+        expect(T_RPAREN);
+        expect(T_SEMICOLON);
+
+        threeAddressCode.addInstruction("if " + condition + " goto " + loopStart);
+    }
+
     void parseIfStatement()
     {
         expect(T_IF);
