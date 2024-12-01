@@ -14,4 +14,9 @@ if (b > 10) {
 else {    
     return 0;
 }
-    
+
+myFunction name(){
+    int a;
+    a = 10+2;
+    c= a-4;
+}

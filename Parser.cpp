@@ -102,7 +102,7 @@ public:
                 else if (word == "if") tokens.push_back(Token{T_IF, word, line});
                 else if (word == "else") tokens.push_back(Token{T_ELSE, word, line});
                 else if (word == "return") tokens.push_back(Token{T_RETURN, word, line});
-                else if (word == "func") tokens.push_back(Token{T_FUNC, word, line});
+                else if (word == "myFunction") tokens.push_back(Token{T_FUNC, word, line});
                 else if (word == "switch") tokens.push_back(Token{T_SWITCH, word, line});
                 else if (word == "case") tokens.push_back(Token{T_CASE, word, line});
                 else if (word == "default") tokens.push_back(Token{T_DEFAULT, word, line});
@@ -275,6 +275,10 @@ class Parser {
         } else if (tokens[pos].type == T_LBRACE) {  
             parseBlock();
         }
+        else if (tokens[pos].type == T_FUNC)
+        {
+            parseFunction();
+        }
         else if (tokens[pos].type == T_WHILE) {
             parseWhileStatement();
         }
@@ -283,6 +287,24 @@ class Parser {
             cout << "Syntax error: unexpected token " << tokens[pos].value << "' at line " << tokens[pos].line;
             exit(1);
         }
+    }
+    void parseFunction()
+    {
+        expect(T_FUNC);
+        string funcName = expectAndReturnValue(T_ID);
+        expect(T_LPAREN);
+        expect(T_RPAREN);
+        expect(T_LBRACE);
+
+        threeAddressCode.addInstruction("START " + funcName + ":");
+
+        while (tokens[pos].type != T_RBRACE && tokens[pos].type != T_EOF)
+        {
+            parseStatement();
+        }
+
+        expect(T_RBRACE);
+        threeAddressCode.addInstruction("END  " + funcName);
     }
     void parseBlock()
     {
