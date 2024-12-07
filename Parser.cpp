@@ -177,6 +177,145 @@ public:
         return str;
     }
 };
+class MachineCodeGenerator
+{
+    public:
+        // Store the generated machine instructions
+        vector<string> machineInstructions;
+
+        // Generate machine code from intermediate code and store it
+        void generateMachineCode(const vector<string> &intermediateCode)
+        {
+            for (const string &instr : intermediateCode)
+            {
+                machineInstructions.push_back(translateToMachineCode(instr));
+            }
+        }
+
+        // Print the stored machine instructions
+        void printMachineInstructions() const
+        {
+            for (const string &instr : machineInstructions)
+            {
+                cout << instr << endl;
+            }
+        }
+
+    private:
+
+        string translateToMachineCode(const string &intermediateInstr)
+        {
+            vector<string> tokens = split(intermediateInstr, ' ');
+
+            if (tokens.empty())
+            {
+                return ""; 
+            }
+
+            if (tokens[0] == "if")
+            {
+               
+                return "CMP " + tokens[1] + ", 0\nJNE " + tokens[3];
+            }
+            else if (tokens[0] == "goto")
+            {
+                
+                return "JMP " + tokens[1];
+            }
+            else if (tokens[0].back() == ':')
+            {
+
+                return tokens[0];
+            }
+            else if (tokens[1] == "=" && tokens.size() == 3)
+            {
+                // Handle simple assignments: x = y
+                return "MOV " + tokens[0] + ", " + tokens[2];
+            }
+            else if (tokens[1] == "=" && tokens.size() == 5)
+            {
+                // Handle arithmetic operations: x = y + z
+                string opCode;
+                if (tokens[3] == "+")
+                    opCode = "ADD";
+                else if (tokens[3] == "-")
+                    opCode = "SUB";
+                else if (tokens[3] == "*")
+                    opCode = "MUL";
+                else if (tokens[3] == "/")
+                    opCode = "DIV";
+                else if (tokens[3] == ">")
+                    return "CMP " + tokens[2] + ", " + tokens[4]; 
+                else if (tokens[3] == "<")
+                    return "CMP " + tokens[2] + ", " + tokens[4]; 
+                else
+                    throw runtime_error("Unsupported operation: " + tokens[3]);
+                return opCode + " " + tokens[0] + ", " + tokens[2] + ", " + tokens[4];
+            }
+            else if (tokens[0] == "return")
+            {
+                // Handle return instructions
+                return "MOV R0, " + tokens[1] + "\nRET";
+            }
+            else if (tokens[0] == "START")
+            {
+                // Handle function labels
+                return tokens[0] + " " + tokens[1];
+            }
+            else if (tokens[0] == "END" && tokens[1] == "FUNCTION")
+            {
+                // Handle function end labels
+                return tokens[0] + " " + tokens[2];
+            }
+            else if (tokens[0] == "switch")
+            {
+                // Handle switch statements
+                return "SWITCH " + tokens[1];
+            }
+            else if (tokens[0] == "Case")
+            {
+                // Handle case statements
+                return "CASE " + tokens[1];
+            }
+            else if (tokens[0] == "default")
+            {
+                // Handle default case
+                return "DEFAULT";
+            }
+            else if (tokens[0] == "break")
+            {
+                // Handle break statements
+                return "BREAK";
+            }
+            else
+            {
+                throw runtime_error("Unsupported operation: " + intermediateInstr);
+            }
+        }
+
+        // Splits a string into tokens by a delimiter
+        vector<string> split(const string &str, char delimiter)
+        {
+            vector<string> tokens;
+            size_t start = 0, end = 0;
+
+            while ((end = str.find(delimiter, start)) != string::npos)
+            {
+                if (end != start)
+                {
+                    tokens.push_back(str.substr(start, end - start));
+                }
+                start = end + 1;
+            }
+
+            if (start < str.size())
+            {
+                tokens.push_back(str.substr(start));
+            }
+
+            return tokens;
+        }
+};
 class ThreeAddressCodeGenerator
 {
     public:
@@ -248,6 +387,7 @@ class Parser {
         size_t pos;
         SymbolTable symTable;
         ThreeAddressCodeGenerator threeAddressCode;
+        MachineCodeGenerator machineCodeGenerator;
         
     public:
         Parser(const vector<Token> &tokens) {
@@ -259,11 +399,25 @@ class Parser {
             while (tokens[pos].type != T_EOF) {
                 parseStatement();
             }
-            cout << "Symbol Table:\n" << endl;
-            symTable.printSymbolTable();
-            cout << "Three Address Code:\n" << endl;
-            threeAddressCode.printInstructions();
+
             cout << "Parsing completed successfully! No Syntax Error" << endl;
+
+        }
+        void printSymbolTable()
+        {
+            cout << "\nSymbol Table:\n" << endl;
+            symTable.printSymbolTable();
+        }
+        void printThreeAddressCode()
+        {
+            cout << "\nThree Address Code:\n" << endl;
+            threeAddressCode.printInstructions();
+        }
+        vector<string> getThreeAddressCode()
+        {
+            cout << "\nGet Three Address Code function\n" << endl;
+            return threeAddressCode.getInstructionsAsVector();
+
         }
     void parseStatement() {
         if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || tokens[pos].type == T_DOUBLE || tokens[pos].type == T_BOOL || tokens[pos].type == T_STRING) {
@@ -309,7 +463,7 @@ class Parser {
         }
 
         expect(T_RBRACE);
-        threeAddressCode.addInstruction("END  " + funcName);
+        threeAddressCode.addInstruction("END FUNCTION " + funcName);
     }
     void parseBlock()
     {
@@ -405,7 +559,7 @@ class Parser {
         string temp = threeAddressCode.newTemp();             
         threeAddressCode.addInstruction(temp + " = " + cond); 
 
-        threeAddressCode.addInstruction("if_false " + temp + " goto L1"); 
+        threeAddressCode.addInstruction("if " + temp + " goto L1"); 
         threeAddressCode.addInstruction("goto L2");                 
         threeAddressCode.addInstruction("L1:");                     
 
@@ -520,6 +674,7 @@ class Parser {
 };
 
 
+
 int main(int argc, char* argv[]) {
     if (argc < 2) {
         cerr << "Usage: " << argv[0] << " <filename>" << endl;
@@ -543,6 +698,11 @@ int main(int argc, char* argv[]) {
     
     Parser parser(tokens);
     parser.parseProgram();
+    MachineCodeGenerator mcg;
+    mcg.generateMachineCode(parser.getThreeAddressCode());
+
+    cout << "\nMachine Code:\n";
+    mcg.printMachineInstructions();
 
     return 0;
 }
